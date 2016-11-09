@@ -20,47 +20,56 @@ use std::marker::PhantomData;
 
 use parking_lot::RwLock;
 
-use hash::{Hash32, Hasher32, NewHash};
+use hash::{Hash32, HasherFactory};
 use backend::Backend;
-use content::Content;
+use content::{Content, Source, Sink};
 use lazy::Lazy;
 
 pub struct Store<T> {
-	backend: Box<Backend>,
-	newhash: NewHash,
+	backend: Arc<RwLock<Box<Backend>>>,
+	hasher: HasherFactory,
 	_p: PhantomData<T>,
 }
 
 impl<T> Store<T> where T: Content {
 	pub fn new(
 		backend: Box<Backend>,
-		factory: Box<Fn() -> Box<Hasher32>>,
+		hasher: HasherFactory,
 	) -> Self {
 		Store {
-			backend: backend,
-			newhash: Arc::new(factory),
+			backend: Arc::new(RwLock::new(backend)),
+			hasher: hasher,
 			_p: PhantomData,
 		}
 	}
 
 	pub fn lazy<U: Content>(&self, inner: U) -> Lazy<U> {
-		Lazy::new(inner, self.newhash.clone())
+		Lazy::new(
+			inner,
+			self.hasher.clone(),
+			self.backend.clone(),
+		)
 	}
 
 	pub fn put(&mut self, t: &T) -> Result<Hash32> {
-		self.backend.store(
-			&|sink, backend| {
-				t.to_content(sink, backend)
+		self.backend.write().store(
+			&|write, backend| {
+				t.to_content(&mut Sink::new(write, backend))
 			},
-			&self.newhash
+			&self.hasher
 		)
 	}
 
 	pub fn get(&mut self, hash: &Hash32) -> Result<T> {
 		let msg = "Request closure not called";
 		let res = RwLock::new(Err(Error::new(ErrorKind::Other, msg)));
-		try!(self.backend.request(hash, &|read| {
-			*res.write() = Ok(try!(T::from_content(read, &self.newhash)));
+		try!(self.backend.read().request(hash, &|read| {
+			let mut source = Source::new(
+				read,
+				&self.hasher,
+				&self.backend
+			);
+			*res.write() = T::from_content(&mut source);
 			Ok(())
 		}));
 		res.into_inner()

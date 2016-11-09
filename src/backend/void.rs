@@ -17,14 +17,14 @@
 use std::io::{Result, Read, Write};
 
 use backend::{Backend, VoidBackend};
-use hash::{Hash32, NewHash};
+use hash::{Hash32, HasherFactory};
 
 impl Backend for VoidBackend
 {
 	fn store(
 		&mut self,
 		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &NewHash,
+		hasher: &HasherFactory,
 	) -> Result<Hash32> {
 		let mut h = hasher();
 		try!(source(&mut h, self));

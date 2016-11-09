@@ -6,10 +6,10 @@ Design goal of the Content storage/serialization backend.
    When implementing Content for your type, you need to provide only two methods, `to_content` that takes a Read, and produces a Self, and `from_content`, an example for u8:
 ```rust
 impl Content for u8 {
-    fn to_content(&self, sink: &mut Write, _: &mut Backend) -> Result<()> {
+    fn to_content(&self, sink: &mut Sink) -> Result<()> {
         sink.write_all(&[*self])
     }
-    fn from_content(source: &mut Read, _: &NewHash) -> Result<Self> {
+    fn from_content(source: &mut Source) -> Result<Self> {
         let b = &mut [0u8];
         try!(source.read_exact(b));
         Ok(b[0])

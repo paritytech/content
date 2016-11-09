@@ -19,15 +19,14 @@ pub mod void;
 pub mod pathbuf;
 
 use std::io::{Read, Write, Result};
-use hash::{Hash32, NewHash};
-
+use hash::{Hash32, HasherFactory};
 pub struct VoidBackend;
 
 pub trait Backend {
 	fn store(
 		&mut self,
 		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		newhash: &NewHash,
+		hasher: &HasherFactory,
 	) -> Result<Hash32>;
 	fn request(
 		&self,

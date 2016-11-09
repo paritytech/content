@@ -18,12 +18,14 @@
 pub struct Hash32(pub [u8; 32]);
 
 use std::hash::{Hash, Hasher};
-use std::io::{Result, Write};
+use std::io::{Result, Write, Read};
 use std::sync::Arc;
 
 use byteorder::{BigEndian, ReadBytesExt};
 
-pub type NewHash = Arc<Box<Fn() -> Box<Hasher32>>>;
+use content::{Content, Source, Sink};
+
+pub type HasherFactory = Arc<Fn() -> Box<Hasher32>>;
 
 impl Hash for Hash32 {
 	fn hash<H: Hasher>(&self, state: &mut H) {
@@ -50,7 +52,7 @@ pub struct WriteThroughHasher<'a> {
 }
 
 impl<'a> WriteThroughHasher<'a> {
-	pub fn new(write: &'a mut Write, hasher: &NewHash) -> Self {
+	pub fn new(write: &'a mut Write, hasher: &HasherFactory) -> Self {
 		WriteThroughHasher {
 			write: write,
 			hasher: hasher(),
@@ -68,5 +70,17 @@ impl<'a> Write for WriteThroughHasher<'a> {
 	}
 	fn flush(&mut self) -> Result<()> {
 		self.write.flush()
+	}
+}
+
+impl Content for Hash32 {
+	fn to_content(&self, sink: &mut Sink) -> Result<()> {
+		let res = sink.write_all(&self.0[..]);
+		res
+	}
+	fn from_content(source: &mut Source) -> Result<Self> {
+		let mut hash = [0; 32];
+		try!(source.read_exact(&mut hash));
+		Ok(Hash32(hash))
 	}
 }

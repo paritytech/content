@@ -14,37 +14,28 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-use content::Content;
+use content::{Content, Source, Sink};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write, Result, Error, ErrorKind};
-use hash::NewHash;
-use backend::Backend;
 
 /// Storage implementations for common std things
 
 impl<T> Content for Option<T> where T: Content {
-	fn to_content(
-		&self,
-		sink: &mut Write,
-		backend: &mut Backend,
-	) -> Result<()> {
+	fn to_content(&self, sink: &mut Sink) -> Result<()> {
 		match *self {
 			Some(ref t) => {
 				try!(sink.write(&[1]));
-				t.to_content(sink, backend)
+				t.to_content(sink)
 			},
 			None => sink.write_all(&[0])
 		}
 	}
-	fn from_content(
-		source: &mut Read,
-		newhash: &NewHash,
-	) -> Result<Self> {
+	fn from_content(source: &mut Source) -> Result<Self> {
 		let mut byte = [0];
 		try!(source.read_exact(&mut byte));
 		match byte[0] {
 			0 => Ok(None),
-			1 => Ok(Some(try!(T::from_content(source, newhash)))),
+			1 => Ok(Some(try!(T::from_content(source)))),
 			_ => Err(Error::new(
 				ErrorKind::Other, "Invalid Option<T> encoding!")
 			),
@@ -58,26 +49,19 @@ impl<T> Content for Option<T> where T: Content {
 // This means that Box<T> and T have an identical content
 // hash, differing only on the type level!
 impl<T> Content for Box<T> where T: Content {
-	fn to_content(
-		&self,
-		sink: &mut Write,
-		backend: &mut Backend,
-	) -> Result<()> {
-		(self as &T).to_content(sink, backend)
+	fn to_content(&self, sink: &mut Sink) -> Result<()> {
+		(self as &T).to_content(sink)
 	}
-	fn from_content(
-		source: &mut Read,
-		newhash: &NewHash,
-	) -> Result<Self> {
-		Ok(Box::new(try!(T::from_content(source, newhash))))
+	fn from_content(source: &mut Source) -> Result<Self> {
+		Ok(Box::new(try!(T::from_content(source))))
 	}
 }
 
 impl Content for u8 {
-	fn to_content(&self, sink: &mut Write, _: &mut Backend) -> Result<()> {
+	fn to_content(&self, sink: &mut Sink) -> Result<()> {
 		sink.write_all(&[*self])
 	}
-	fn from_content(source: &mut Read, _: &NewHash) -> Result<Self> {
+	fn from_content(source: &mut Source) -> Result<Self> {
 		let b = &mut [0u8];
 		try!(source.read_exact(b));
 		Ok(b[0])
@@ -87,17 +71,10 @@ impl Content for u8 {
 macro_rules! number {
 	( $t:ty: $read:ident, $write:ident ) => {
 		impl Content for $t {
-			fn to_content(
-				&self,
-				sink: &mut Write,
-				_: &mut Backend,
-			) -> Result<()> {
+			fn to_content(&self, sink: &mut Sink) -> Result<()> {
 				sink.$write::<BigEndian>(*self)
 			}
-			fn from_content(
-				source: &mut Read,
-				_: &NewHash,
-			) -> Result<Self> {
+			fn from_content(source: &mut Source) -> Result<Self> {
 				source.$read::<BigEndian>()
 			}
 		}

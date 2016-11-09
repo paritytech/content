@@ -22,10 +22,11 @@ use tempdir::TempDir;
 use std::io::{Read, Write, Result, Error, ErrorKind};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use self::b2::blake2b::Blake2b;
 
-use hash::{Hash32, Hasher32, NewHash};
+use hash::{Hash32, Hasher32, HasherFactory};
 use backend::Backend;
 use store::Store;
 use content::Content;
@@ -63,9 +64,9 @@ impl Backend for TempDir {
 	fn store(
 		&mut self,
 		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		newhash: &NewHash,
+		hasher: &HasherFactory,
 	) -> Result<Hash32> {
-		PathBuf::from(self.path()).store(source, newhash)
+		PathBuf::from(self.path()).store(source, hasher)
 	}
 	fn request(
 		&self,
@@ -85,13 +86,13 @@ pub fn diskbackend() -> Box<Backend> {
 }
 
 pub fn store<T: Content>() -> Store<T> {
-	Store::new(membackend(), Box::new(|| {
+	Store::new(membackend(), Arc::new(|| {
 		Box::new(BlakeWrap(Some(Blake2b::new(32))))
 	}))
 }
 
 pub fn diskstore<T: Content>() -> Store<T> {
-	Store::new(diskbackend(), Box::new(|| {
+	Store::new(diskbackend(), Arc::new(|| {
 		Box::new(BlakeWrap(Some(Blake2b::new(32))))
 	}))
 }
