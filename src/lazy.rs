@@ -15,7 +15,8 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 use content::{Content, Source, Sink};
-use backend::{Backend, VoidBackend};
+use backend::Backend;
+use backend::void::VoidBackend;
 use hash::{Hash32, HasherFactory};
 use std::sync::Arc;
 
@@ -108,8 +109,14 @@ impl<T> Lazy<T> where T: Content {
 						let t = &(*self.value.get())
 							.as_ref()
 							.expect("Bare always has value");
-						t.to_content(&mut Sink::new(write, backend))
-					}, &self.hasher).expect("VoidBackend cannot fail"));
+						let mut sink = Sink::new(
+							write,
+							backend,
+							(self.hasher)()
+						);
+						try!(t.to_content(&mut sink));
+						Ok(sink.fin())
+					}).expect("VoidBackend cannot fail"));
 					LazyRef::new(
 						readlock,
 						&(*self.hash.get())
@@ -191,12 +198,18 @@ impl<T> Content for Lazy<T> where T: Content {
 			State::Bare | State::Hashed => {
 				// TODO, don't re-hash
 				unsafe {
-					let hash = sink.backend.store(&|write, backend| {
+					let hash = try!(sink.backend.store(&|write, backend| {
 						let t = &(*self.value.get())
 							.as_ref()
 							.expect("Bare and Hashed always has value");
-						t.to_content(&mut Sink::new(write, backend))
-					}, &self.hasher).expect("VoidBackend cannot fail");
+						let mut inner_sink = Sink::new(
+							write,
+							backend,
+							(self.hasher)(),
+						);
+						try!(t.to_content(&mut inner_sink));
+						Ok(inner_sink.fin())
+					}));
 					try!(hash.to_content(sink));
 					*self.hash.get() = Some(hash);
 				}

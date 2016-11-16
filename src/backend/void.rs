@@ -16,19 +16,29 @@
 
 use std::io::{Result, Read, Write};
 
-use backend::{Backend, VoidBackend};
-use hash::{Hash32, HasherFactory};
+use backend::Backend;
+use hash::Hash32;
+
+struct VoidWrite;
+
+impl Write for VoidWrite {
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		Ok(buf.len())
+	}
+	fn flush(&mut self) -> Result<()> {
+		Ok(())
+	}
+}
+
+pub struct VoidBackend;
 
 impl Backend for VoidBackend
 {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &HasherFactory,
+		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
 	) -> Result<Hash32> {
-		let mut h = hasher();
-		try!(source(&mut h, self));
-		Ok(h.finalize())
+		source(&mut VoidWrite, self)
 	}
 	fn request(&self, _: &Hash32, _: &Fn(&mut Read) -> Result<()>,
 	) -> Result<()> {

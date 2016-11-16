@@ -46,33 +46,6 @@ pub trait Hasher32
 	fn finalize(&mut self) -> Hash32;
 }
 
-pub struct WriteThroughHasher<'a> {
-	write: &'a mut Write,
-	hasher: Box<Hasher32>,
-}
-
-impl<'a> WriteThroughHasher<'a> {
-	pub fn new(write: &'a mut Write, hasher: &HasherFactory) -> Self {
-		WriteThroughHasher {
-			write: write,
-			hasher: hasher(),
-		}
-	}
-	pub fn finalize(&mut self) -> Hash32 {
-		self.hasher.finalize()
-	}
-}
-
-impl<'a> Write for WriteThroughHasher<'a> {
-	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		try!(self.hasher.write(buf));
-		self.write.write(buf)
-	}
-	fn flush(&mut self) -> Result<()> {
-		self.write.flush()
-	}
-}
-
 impl Content for Hash32 {
 	fn to_content(&self, sink: &mut Sink) -> Result<()> {
 		let res = sink.write_all(&self.0[..]);

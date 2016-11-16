@@ -54,9 +54,10 @@ impl<T> Store<T> where T: Content {
 	pub fn put(&mut self, t: &T) -> Result<Hash32> {
 		self.backend.write().store(
 			&|write, backend| {
-				t.to_content(&mut Sink::new(write, backend))
-			},
-			&self.hasher
+				let mut sink = Sink::new(write, backend, (self.hasher)());
+				try!(t.to_content(&mut sink));
+				Ok(sink.fin())
+			}
 		)
 	}
 

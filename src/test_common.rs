@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use self::b2::blake2b::Blake2b;
 
-use hash::{Hash32, Hasher32, HasherFactory};
+use hash::{Hash32, Hasher32};
 use backend::Backend;
 use store::Store;
 use content::Content;
@@ -63,10 +63,9 @@ impl Write for BlakeWrap {
 impl Backend for TempDir {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &HasherFactory,
+		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
 	) -> Result<Hash32> {
-		PathBuf::from(self.path()).store(source, hasher)
+		PathBuf::from(self.path()).store(source)
 	}
 	fn request(
 		&self,

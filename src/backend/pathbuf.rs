@@ -21,7 +21,7 @@ use std::fmt::Write as FmtWrite;
 use rand::{thread_rng, Rng};
 
 use backend::Backend;
-use hash::{Hash32, HasherFactory, WriteThroughHasher};
+use hash::Hash32;
 
 fn pathbuf_from_hash(root: &PathBuf, hash: &Hash32) -> Result<PathBuf> {
 	let a = format!("{:02x}", hash.0[0]);
@@ -50,18 +50,11 @@ fn temporary_path(root: &PathBuf) -> PathBuf {
 impl Backend for PathBuf {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &HasherFactory,
+		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>
 	) -> Result<Hash32> {
 		let tmp_path = temporary_path(self);
 		let mut file = try!(File::create(&tmp_path));
-		let hash;
-		{
-			let mut wth = WriteThroughHasher::new(&mut file, hasher);
-			try!(source(&mut wth, self));
-			hash = wth.finalize();
-		}
-
+		let hash = try!(source(&mut file, self));
 		let pathbuf = try!(pathbuf_from_hash(self, &hash));
 		try!(fs::rename(tmp_path, pathbuf));
 		Ok(hash)

@@ -20,7 +20,7 @@ use std::sync::Arc;
 use parking_lot::{RwLock, RwLockReadGuard};
 
 use backend::Backend;
-use hash::HasherFactory;
+use hash::{HasherFactory, Hasher32, Hash32};
 
 pub trait Content where Self: Sized {
 	fn to_content(&self, sink: &mut Sink) -> Result<()>;
@@ -32,8 +32,8 @@ pub trait Content where Self: Sized {
 pub struct Source<'a> {
 	read: &'a mut Read,
 	pub backend: RwLockReadGuard<'a, Box<Backend>>,
-	pub hasher: &'a HasherFactory,
 	pub backend_arc: &'a Arc<RwLock<Box<Backend>>>,
+	pub hasher: &'a HasherFactory,
 }
 
 impl<'a> Source<'a> {
@@ -60,22 +60,29 @@ impl<'a> Read for Source<'a> {
 pub struct Sink<'a> {
 	write: &'a mut Write,
 	pub backend: &'a mut Backend,
+	hasher: Box<Hasher32>,
 }
 
 impl<'a> Sink<'a> {
 	pub fn new(
 		write: &'a mut Write,
 		backend: &'a mut Backend,
+		hasher: Box<Hasher32>,
 	) -> Self {
 		Sink {
 			write: write,
 			backend: backend,
+			hasher: hasher,
 		}
+	}
+	pub fn fin(&mut self) -> Hash32 {
+		self.hasher.finalize()
 	}
 }
 
 impl<'a> Write for Sink<'a> {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		try!(self.hasher.write(buf));
 		self.write.write(buf)
 	}
 	fn flush(&mut self) -> Result<()> {

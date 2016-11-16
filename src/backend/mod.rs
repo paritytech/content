@@ -15,18 +15,16 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 pub mod hashmap;
-pub mod void;
 pub mod pathbuf;
+pub mod void;
 
 use std::io::{Read, Write, Result};
-use hash::{Hash32, HasherFactory};
-pub struct VoidBackend;
+use hash::Hash32;
 
 pub trait Backend {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &HasherFactory,
+		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
 	) -> Result<Hash32>;
 	fn request(
 		&self,

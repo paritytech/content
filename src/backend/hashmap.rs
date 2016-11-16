@@ -18,22 +18,16 @@ use std::collections::HashMap;
 use std::io::{Result, Read, Write, Error, ErrorKind};
 
 use backend::Backend;
-use hash::{Hash32, HasherFactory, WriteThroughHasher};
+use hash::Hash32;
 
 impl Backend for HashMap<Hash32, Vec<u8>>
 {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<()>,
-		hasher: &HasherFactory,
+		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
 	) -> Result<Hash32> {
 		let mut vec = vec![];
-		let hash;
-		{
-			let mut wth = WriteThroughHasher::new(&mut vec, hasher);
-			try!(source(&mut wth, self));
-			hash = wth.finalize();
-		}
+		let hash = try!(source(&mut vec, self));
 		self.insert(hash.clone(), vec);
 		Ok(hash)
 	}
