@@ -68,6 +68,15 @@ impl Content for u8 {
 	}
 }
 
+impl Content for () {
+	fn to_content(&self, _: &mut Sink) -> Result<()> {
+		Ok(())
+	}
+	fn from_content(_: &mut Source) -> Result<Self> {
+		Ok(())
+	}
+}
+
 macro_rules! number {
 	( $t:ty: $read:ident, $write:ident ) => {
 		impl Content for $t {

@@ -20,6 +20,7 @@ pub struct Hash32(pub [u8; 32]);
 use std::hash::{Hash, Hasher};
 use std::io::{Result, Write, Read};
 use std::sync::Arc;
+use std::fmt;
 
 use byteorder::{BigEndian, ReadBytesExt};
 
@@ -32,6 +33,15 @@ impl Hash for Hash32 {
 		self.0.as_ref().read_u64::<BigEndian>()
 			.expect("read from [u8; 32] - don't panic!")
 			.hash(state);
+	}
+}
+
+impl fmt::Display for Hash32 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		for b in self.0.iter() {
+			try!(write!(f, "{:02x}", b))
+		}
+		Ok(())
 	}
 }
 
