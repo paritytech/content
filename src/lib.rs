@@ -31,4 +31,6 @@ mod std_impls;
 mod lazy;
 
 pub use store::Store;
-pub use content::Content;
+pub use content::{Content, Sink, Source};
+pub use lazy::Lazy;
+pub use hash::{Hash32, Hasher32};
