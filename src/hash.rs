@@ -67,3 +67,24 @@ impl Content for Hash32 {
 		Ok(Hash32(hash))
 	}
 }
+
+struct VoidHasher;
+
+impl Hasher32 for VoidHasher {
+	fn finalize(&mut self) -> Hash32 {
+		Hash32::from([0; 32])
+	}
+}
+
+impl Write for VoidHasher {
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		Ok(buf.len())
+	}
+	fn flush(&mut self) -> Result<()> {
+		Ok(())
+	}
+}
+
+pub fn voidhasher() -> Box<Hasher32> {
+	Box::new(VoidHasher)
+}

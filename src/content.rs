@@ -20,11 +20,43 @@ use std::sync::Arc;
 use parking_lot::{RwLock, RwLockReadGuard};
 
 use backend::Backend;
-use hash::{HasherFactory, Hasher32, Hash32};
+use backend::void::VoidBackend;
+use hash::{self, HasherFactory, Hasher32, Hash32};
 
 pub trait Content where Self: Sized {
 	fn to_content(&self, sink: &mut Sink) -> Result<()>;
 	fn from_content(source: &mut Source) -> Result<Self>;
+
+	fn content_len(&self) -> usize {
+		let mut write = CountingWrite(0);
+		{
+			let mut backend = VoidBackend;
+			let mut sink = Sink::new(&mut write,
+									 &mut backend,
+									 hash::voidhasher());
+			self.to_content(&mut sink).expect("Cannot fail");
+		}
+		write.written_len()
+	}
+}
+
+pub struct CountingWrite(usize);
+
+impl CountingWrite {
+	fn written_len(&self) -> usize {
+		self.0
+	}
+}
+
+impl Write for CountingWrite {
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		let len = buf.len();
+		self.0 += len;
+		Ok(len)
+	}
+	fn flush(&mut self) -> Result<()> {
+		Ok(())
+	}
 }
 
 /// Implements `Read` + carries along context for constructing types
@@ -87,5 +119,17 @@ impl<'a> Write for Sink<'a> {
 	}
 	fn flush(&mut self) -> Result<()> {
 		self.write.flush()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+    use content::Content;
+
+	#[test]
+	fn content_len() {
+		assert_eq!(8u8.content_len(), 1);
+		assert_eq!(Some(8u8).content_len(), 2);
+		assert_eq!(8u64.content_len(), 8);
 	}
 }
