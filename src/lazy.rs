@@ -24,7 +24,6 @@ use std::ops::Deref;
 use parking_lot::{RwLock, RwLockReadGuard};
 use std::io::{Result, Error, ErrorKind};
 use std::fmt;
-use std::marker::PhantomData;
 use std::cell::UnsafeCell;
 
 pub enum State {
@@ -55,7 +54,6 @@ pub struct Lazy<T> where T: Content {
 pub struct LazyRef<'a, T: 'a> {
 	_guard: RwLockReadGuard<'a, State>,
 	value: &'a T,
-	_marker: PhantomData<&'a T>,
 }
 
 impl<'a, T> LazyRef<'a, T> {
@@ -63,7 +61,6 @@ impl<'a, T> LazyRef<'a, T> {
 		LazyRef {
 			_guard: guard,
 			value: value,
-			_marker: PhantomData,
 		}
 	}
 }
