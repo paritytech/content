@@ -14,51 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate blake2_rfc as b2;
 extern crate tempdir;
 
 use tempdir::TempDir;
 
-use std::io::{Read, Write, Result, Error, ErrorKind};
-use std::collections::HashMap;
+use std::io::{Read, Write, Result};
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use self::b2::blake2b::Blake2b;
-
-use hash::{Hash32, Hasher32};
+use hash::Hash32;
 use backend::Backend;
 use store::Store;
 use content::Content;
-
-pub struct BlakeWrap(Option<Blake2b>);
-
-impl Hasher32 for BlakeWrap {
-	fn finalize(&mut self) -> Hash32 {
-		let r = self.0.take().expect("Hasher finalized only once").finalize();
-		let s = r.as_bytes();
-		let mut arr = [0u8; 32];
-		for i in 0..32 {
-			arr[i] = s[i]
-		}
-		Hash32(arr)
-	}
-}
-
-impl Write for BlakeWrap {
-	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		let msg = "Write to finished hasher";
-		let mut res = Err(Error::new(ErrorKind::Other, msg));
-		self.0.iter_mut().next().map(|hasher| res = hasher.write(buf));
-		res
-	}
-	fn flush(&mut self) -> Result<()> {
-		let msg = "Flushing finished hasher";
-		let mut res = Err(Error::new(ErrorKind::Other, msg));
-		self.0.iter_mut().next().map(|hasher| res = hasher.flush());
-		res
-	}
-}
 
 impl Backend for TempDir {
 	fn store(
@@ -76,22 +42,10 @@ impl Backend for TempDir {
 	}
 }
 
-pub fn membackend() -> Box<Backend> {
-	Box::new(HashMap::<Hash32, Vec<u8>>::new())
-}
-
-pub fn diskbackend() -> Box<Backend> {
+pub fn tempdisk() -> Box<Backend> {
 	Box::new(TempDir::new("content_pathbuf").unwrap())
 }
 
-pub fn store<T: Content>() -> Store<T> {
-	Store::new(membackend(), Arc::new(|| {
-		Box::new(BlakeWrap(Some(Blake2b::new(32))))
-	}))
-}
-
 pub fn diskstore<T: Content>() -> Store<T> {
-	Store::new(diskbackend(), Arc::new(|| {
-		Box::new(BlakeWrap(Some(Blake2b::new(32))))
-	}))
+	Store::new_with_backend(tempdisk())
 }

@@ -15,9 +15,8 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::io::{Read, Write, Result};
-use std::sync::Arc;
 
-use parking_lot::{RwLock, RwLockReadGuard};
+use parking_lot::RwLockReadGuard;
 
 use backend::Backend;
 use backend::void::VoidBackend;
@@ -59,12 +58,9 @@ impl Write for CountingWrite {
 	}
 }
 
-/// Implements `Read` + carries along context for constructing types
-/// that needs awareness of the backend. `Lazy<T>` for example.
 pub struct Source<'a> {
 	read: &'a mut Read,
 	pub backend: RwLockReadGuard<'a, Box<Backend>>,
-	pub backend_arc: &'a Arc<RwLock<Box<Backend>>>,
 	pub hasher: &'a HasherFactory,
 }
 
@@ -72,13 +68,12 @@ impl<'a> Source<'a> {
 	pub fn new(
 		read: &'a mut Read,
 		hasher: &'a HasherFactory,
-		backend_arc: &'a Arc<RwLock<Box<Backend>>>
+		backend: RwLockReadGuard<'a, Box<Backend>>,
 	) -> Self {
 		Source {
 			read: read,
 			hasher: hasher,
-			backend: backend_arc.read(),
-			backend_arc: backend_arc,
+			backend: backend,
 		}
 	}
 }

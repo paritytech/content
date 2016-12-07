@@ -23,7 +23,7 @@ use parking_lot::RwLock;
 use hash::{Hash32, HasherFactory};
 use backend::Backend;
 use content::{Content, Source, Sink};
-use lazy::Lazy;
+use default;
 
 pub struct Store<T> {
 	backend: Arc<RwLock<Box<Backend>>>,
@@ -32,7 +32,7 @@ pub struct Store<T> {
 }
 
 impl<T> Store<T> where T: Content {
-	pub fn new(
+	pub fn new_with_backend_and_hasher(
 		backend: Box<Backend>,
 		hasher: HasherFactory,
 	) -> Self {
@@ -43,11 +43,24 @@ impl<T> Store<T> where T: Content {
 		}
 	}
 
-	pub fn lazy<U: Content>(&self, inner: U) -> Lazy<U> {
-		Lazy::new(
-			inner,
-			self.hasher.clone(),
-			self.backend.clone(),
+	pub fn new_with_backend(backend: Box<Backend>) -> Self {
+		Self::new_with_backend_and_hasher(
+			backend,
+			default::hasher(),
+		)
+	}
+
+	pub fn new_with_hasher(hasher: HasherFactory) -> Self {
+		Self::new_with_backend_and_hasher(
+			default::backend(),
+			hasher,
+		)
+	}
+
+	pub fn new() -> Self {
+		Self::new_with_backend_and_hasher(
+			default::backend(),
+			default::hasher(),
 		)
 	}
 
@@ -68,7 +81,7 @@ impl<T> Store<T> where T: Content {
 			let mut source = Source::new(
 				read,
 				&self.hasher,
-				&self.backend
+				self.backend.read(),
 			);
 			*res.write() = T::from_content(&mut source);
 			Ok(())
@@ -80,11 +93,11 @@ impl<T> Store<T> where T: Content {
 #[cfg(test)]
 mod tests {
 
-	use test_common;
+	use super::Store;
 
 	#[test]
 	fn put_u8() {
-		let mut store = test_common::store::<u8>();
+		let mut store = Store::new();
 
 		let hash = store.put(&42).unwrap();
 		let hash2 = store.put(&43).unwrap();

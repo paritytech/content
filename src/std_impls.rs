@@ -94,14 +94,18 @@ number!(u64: read_u64, write_u64);
 number!(u32: read_u32, write_u32);
 number!(u16: read_u16, write_u16);
 
+number!(i64: read_i64, write_i64);
+number!(i32: read_i32, write_i32);
+number!(i16: read_i16, write_i16);
+
 #[cfg(test)]
 mod tests {
-	use test_common;
+	use store::Store;
 	use content::Content;
 	use std::fmt::Debug;
 
 	fn put_get<T: Content + Debug + PartialEq>(t: T) {
-		let mut store = test_common::store();
+		let mut store = Store::new();
 		let hash = store.put(&t).unwrap();
 		assert_eq!(store.get(&hash).unwrap(), t);
 	}

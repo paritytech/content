@@ -23,7 +23,3 @@ impl Content for u8 {
    Things that implement Content, implicitly know how to serialize and deserialize themselves, including knowing their length. And since types can nest other Content types within themselves, you basically get the whole schema and de/serialization for free.
 ## Zero copy io
    When a Content is put into a store, Reads and Writes are connected directly.
-## Transparant lazy references
-   If you have a type implementing Content that is larger than would make sense to serialize directly, such as a tree structure, you can put the children behind Lazy<T> reference types, which means they will only be lazily loaded off disk and cached as they are needed.
-## Hash while writing, only hash once
-   Hashing is much more expensive than serialization, therefore we assure that any data is only hashed once

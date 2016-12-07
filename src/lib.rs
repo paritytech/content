@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
+extern crate blake2_rfc;
 extern crate parking_lot;
 extern crate byteorder;
 extern crate rand;
@@ -23,14 +24,13 @@ extern crate tempdir;
 #[cfg(test)]
 mod test_common;
 
+mod default;
 mod content;
 mod store;
 mod backend;
 mod hash;
 mod std_impls;
-mod lazy;
 
 pub use store::Store;
 pub use content::{Content, Sink, Source};
-pub use lazy::Lazy;
 pub use hash::{Hash32, Hasher32};
