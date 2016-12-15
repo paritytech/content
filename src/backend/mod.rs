@@ -16,19 +16,18 @@
 
 pub mod hashmap;
 pub mod pathbuf;
-pub mod void;
 
 use std::io::{Read, Write, Result};
-use hash::Hash32;
+use hash::ContentHasher;
 
-pub trait Backend {
+pub trait Backend<H> where H: ContentHasher {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
-	) -> Result<Hash32>;
+		source: &Fn(&mut Write, &mut Backend<H>) -> Result<H::Digest>,
+	) -> Result<H::Digest>;
 	fn request(
 		&self,
-		hash: &Hash32,
+		hash: &H::Digest,
 		read: &Fn(&mut Read) -> Result<()>,
 	) -> Result<()>;
 }

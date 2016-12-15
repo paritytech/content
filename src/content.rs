@@ -19,112 +19,64 @@ use std::io::{Read, Write, Result};
 use parking_lot::RwLockReadGuard;
 
 use backend::Backend;
-use backend::void::VoidBackend;
-use hash::{self, HasherFactory, Hasher32, Hash32};
+use hash::ContentHasher;
 
-pub trait Content where Self: Sized {
-	fn to_content(&self, sink: &mut Sink) -> Result<()>;
-	fn from_content(source: &mut Source) -> Result<Self>;
-
-	fn content_len(&self) -> usize {
-		let mut write = CountingWrite(0);
-		{
-			let mut backend = VoidBackend;
-			let mut sink = Sink::new(&mut write,
-									 &mut backend,
-									 hash::voidhasher());
-			self.to_content(&mut sink).expect("Cannot fail");
-		}
-		write.written_len()
-	}
+pub trait Content<H> where Self: Sized, H: ContentHasher {
+	fn to_content(&self, sink: &mut Sink<H>) -> Result<()>;
+	fn from_content(source: &mut Source<H>) -> Result<Self>;
 }
 
-pub struct CountingWrite(usize);
-
-impl CountingWrite {
-	fn written_len(&self) -> usize {
-		self.0
-	}
-}
-
-impl Write for CountingWrite {
-	fn write(&mut self, buf: &[u8]) -> Result<usize> {
-		let len = buf.len();
-		self.0 += len;
-		Ok(len)
-	}
-	fn flush(&mut self) -> Result<()> {
-		Ok(())
-	}
-}
-
-pub struct Source<'a> {
+pub struct Source<'a, H> where H: 'a + ContentHasher {
 	read: &'a mut Read,
-	pub backend: RwLockReadGuard<'a, Box<Backend>>,
-	pub hasher: &'a HasherFactory,
+	pub backend: RwLockReadGuard<'a, Box<Backend<H>>>,
 }
 
-impl<'a> Source<'a> {
+impl<'a, H> Source<'a, H> where H: ContentHasher {
 	pub fn new(
 		read: &'a mut Read,
-		hasher: &'a HasherFactory,
-		backend: RwLockReadGuard<'a, Box<Backend>>,
+		backend: RwLockReadGuard<'a, Box<Backend<H>>>,
 	) -> Self {
 		Source {
 			read: read,
-			hasher: hasher,
 			backend: backend,
 		}
 	}
 }
 
-impl<'a> Read for Source<'a> {
-   fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-	   self.read.read(buf)
-   }
+impl<'a, H> Read for Source<'a, H> where H: ContentHasher {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+		self.read.read(buf)
+	}
 }
 
-pub struct Sink<'a> {
+pub struct Sink<'a, H> where H: 'a {
 	write: &'a mut Write,
-	pub backend: &'a mut Backend,
-	hasher: Box<Hasher32>,
+	pub backend: &'a mut Backend<H>,
+	hasher: H,
 }
 
-impl<'a> Sink<'a> {
+impl<'a, H> Sink<'a, H> where H: ContentHasher {
 	pub fn new(
 		write: &'a mut Write,
-		backend: &'a mut Backend,
-		hasher: Box<Hasher32>,
+		backend: &'a mut Backend<H>,
 	) -> Self {
 		Sink {
 			write: write,
 			backend: backend,
-			hasher: hasher,
+			hasher: H::new(),
 		}
 	}
-	pub fn fin(&mut self) -> Hash32 {
-		self.hasher.finalize()
+	pub fn fin(self) -> H::Digest {
+		self.hasher.fin()
 	}
 }
 
-impl<'a> Write for Sink<'a> {
+impl<'a, H> Write for Sink<'a, H> where H: ContentHasher {
 	fn write(&mut self, buf: &[u8]) -> Result<usize> {
 		try!(self.hasher.write(buf));
 		self.write.write(buf)
 	}
 	fn flush(&mut self) -> Result<()> {
 		self.write.flush()
-	}
-}
-
-#[cfg(test)]
-mod tests {
-    use content::Content;
-
-	#[test]
-	fn content_len() {
-		assert_eq!(8u8.content_len(), 1);
-		assert_eq!(Some(8u8).content_len(), 2);
-		assert_eq!(8u64.content_len(), 8);
 	}
 }

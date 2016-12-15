@@ -14,65 +14,51 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Hash32(pub [u8; 32]);
-
 use std::hash::{Hash, Hasher};
-use std::io::{Result, Write, Read};
-use std::sync::Arc;
-use std::fmt;
+use std::io::{Result, Write};
 
-use byteorder::{BigEndian, ReadBytesExt};
+use content::{Content, Sink, Source};
 
-use content::{Content, Source, Sink};
+pub trait ContentHasher where Self: Write + Sized {
+	type Digest: Eq + Hash + Clone + Content<Self> + AsRef<[u8]>;
 
-pub type HasherFactory = Arc<Fn() -> Box<Hasher32>>;
-
-impl Hash for Hash32 {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.0.as_ref().read_u64::<BigEndian>()
-			.expect("read from [u8; 32] - don't panic!")
-			.hash(state);
-	}
-}
-
-impl fmt::Display for Hash32 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		for b in self.0.iter() {
-			try!(write!(f, "{:02x}", b))
-		}
-		Ok(())
-	}
-}
-
-impl From<[u8; 32]> for Hash32 {
-	fn from(array: [u8; 32]) -> Self {
-		Hash32(array)
-	}
-}
-
-pub trait Hasher32
-	where Self: Write  {
-	fn finalize(&mut self) -> Hash32;
-}
-
-impl Content for Hash32 {
-	fn to_content(&self, sink: &mut Sink) -> Result<()> {
-		let res = sink.write_all(&self.0[..]);
-		res
-	}
-	fn from_content(source: &mut Source) -> Result<Self> {
-		let mut hash = [0; 32];
-		try!(source.read_exact(&mut hash));
-		Ok(Hash32(hash))
-	}
+	fn new() -> Self;
+	fn fin(self) -> Self::Digest;
 }
 
 struct VoidHasher;
 
-impl Hasher32 for VoidHasher {
-	fn finalize(&mut self) -> Hash32 {
-		Hash32::from([0; 32])
+#[derive(PartialEq, Eq, Clone)]
+struct VoidHash;
+
+impl ContentHasher for VoidHasher {
+	type Digest = VoidHash;
+
+	fn new() -> Self {
+		VoidHasher
+	}
+
+	fn fin(self) -> Self::Digest {
+		VoidHash
+	}
+}
+
+impl AsRef<[u8]> for VoidHash {
+	fn as_ref(&self) -> &[u8] {
+		&[]
+	}
+}
+
+impl Hash for VoidHash {
+	fn hash<H>(&self, _: &mut H) where H: Hasher {}
+}
+
+impl<H> Content<H> for VoidHash where H: ContentHasher {
+	fn to_content(&self, _: &mut Sink<H>) -> Result<()> {
+		Ok(())
+	}
+	fn from_content(_: &mut Source<H>) -> Result<Self> {
+		Ok(VoidHash)
 	}
 }
 
@@ -83,8 +69,4 @@ impl Write for VoidHasher {
 	fn flush(&mut self) -> Result<()> {
 		Ok(())
 	}
-}
-
-pub fn voidhasher() -> Box<Hasher32> {
-	Box::new(VoidHasher)
 }

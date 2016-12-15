@@ -21,14 +21,18 @@ use std::fmt::Write as FmtWrite;
 use rand::{thread_rng, Rng};
 
 use backend::Backend;
-use hash::Hash32;
+use hash::ContentHasher;
 
-fn pathbuf_from_hash(root: &PathBuf, hash: &Hash32) -> Result<PathBuf> {
-	let a = format!("{:02x}", hash.0[0]);
-	let b = format!("{:02x}", hash.0[1]);
+fn pathbuf_from_hash<H: ContentHasher>(
+	root: &PathBuf,
+	hash: &H::Digest
+) -> Result<PathBuf> {
+	let bytes: &[u8] = hash.as_ref();
+	let a = format!("{:02x}", bytes[0]);
+	let b = format!("{:02x}", bytes[1]);
 	let mut rest = String::new();
 	for i in 2..32 {
-		write!(&mut rest, "{:02x}", hash.0[i])
+		write!(&mut rest, "{:02x}", bytes[i])
 			.expect("in-memory write to succeed");
 	};
 	let mut pathbuf = root.clone();
@@ -47,24 +51,24 @@ fn temporary_path(root: &PathBuf) -> PathBuf {
 	rand
 }
 
-impl Backend for PathBuf {
+impl<H> Backend<H> for PathBuf where H: ContentHasher {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>
-	) -> Result<Hash32> {
+		source: &Fn(&mut Write, &mut Backend<H>) -> Result<H::Digest>
+	) -> Result<H::Digest> {
 		let tmp_path = temporary_path(self);
 		let mut file = try!(File::create(&tmp_path));
 		let hash = try!(source(&mut file, self));
-		let pathbuf = try!(pathbuf_from_hash(self, &hash));
+		let pathbuf = try!(pathbuf_from_hash::<H>(self, &hash));
 		try!(fs::rename(tmp_path, pathbuf));
 		Ok(hash)
 	}
 	fn request(
 		&self,
-		hash: &Hash32,
+		hash: &H::Digest,
 		read: &Fn(&mut Read) -> Result<()>,
 	) -> Result<()> {
-		let pathbuf = try!(pathbuf_from_hash(self, &hash));
+		let pathbuf = try!(pathbuf_from_hash::<H>(self, &hash));
 		let mut file = try!(File::open(pathbuf));
 		read(&mut file)
 	}
@@ -72,11 +76,16 @@ impl Backend for PathBuf {
 
 #[cfg(test)]
 mod tests {
-	use test_common;
+	extern crate tempdir;
+	use store::Store;
+	use tempdir::TempDir;
+	use default::BlakeWrap;
 
 	#[test]
 	fn disk_write_get() {
-		let mut store = test_common::diskstore();
+		let mut store: Store<_, BlakeWrap> = Store::new_with_backend(
+			Box::new(TempDir::new("content").unwrap())
+		);
 		let thing = Some(Box::new(8u8));
 		let hash = store.put(&thing).unwrap();
 		let retrieved = store.get(&hash).unwrap();

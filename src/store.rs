@@ -17,70 +17,47 @@
 use std::sync::Arc;
 use std::io::{Result, Error, ErrorKind};
 use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use parking_lot::RwLock;
 
-use hash::{Hash32, HasherFactory};
+use hash::ContentHasher;
 use backend::Backend;
 use content::{Content, Source, Sink};
-use default;
 
-pub struct Store<T> {
-	backend: Arc<RwLock<Box<Backend>>>,
-	hasher: HasherFactory,
+pub struct Store<T, H> {
+	backend: Arc<RwLock<Box<Backend<H>>>>,
 	_p: PhantomData<T>,
 }
 
-impl<T> Store<T> where T: Content {
-	pub fn new_with_backend_and_hasher(
-		backend: Box<Backend>,
-		hasher: HasherFactory,
-	) -> Self {
+impl<T, H> Store<T, H> where T: Content<H>, H: ContentHasher + 'static {
+	pub fn new() -> Self {
+		Self::new_with_backend(Box::new(HashMap::new()))
+	}
+
+	pub fn new_with_backend(backend: Box<Backend<H>>) -> Self {
 		Store {
 			backend: Arc::new(RwLock::new(backend)),
-			hasher: hasher,
 			_p: PhantomData,
 		}
 	}
 
-	pub fn new_with_backend(backend: Box<Backend>) -> Self {
-		Self::new_with_backend_and_hasher(
-			backend,
-			default::hasher(),
-		)
-	}
-
-	pub fn new_with_hasher(hasher: HasherFactory) -> Self {
-		Self::new_with_backend_and_hasher(
-			default::backend(),
-			hasher,
-		)
-	}
-
-	pub fn new() -> Self {
-		Self::new_with_backend_and_hasher(
-			default::backend(),
-			default::hasher(),
-		)
-	}
-
-	pub fn put(&mut self, t: &T) -> Result<Hash32> {
+	pub fn put(&mut self, t: &T) -> Result<H::Digest> {
 		self.backend.write().store(
 			&|write, backend| {
-				let mut sink = Sink::new(write, backend, (self.hasher)());
+				let mut sink = Sink::new(write, backend);
 				try!(t.to_content(&mut sink));
 				Ok(sink.fin())
 			}
 		)
 	}
 
-	pub fn get(&mut self, hash: &Hash32) -> Result<T> {
+	pub fn get(&mut self, hash: &H::Digest) -> Result<T> {
 		let msg = "Request closure not called";
 		let res = RwLock::new(Err(Error::new(ErrorKind::Other, msg)));
 		try!(self.backend.read().request(hash, &|read| {
 			let mut source = Source::new(
 				read,
-				&self.hasher,
 				self.backend.read(),
 			);
 			*res.write() = T::from_content(&mut source);
@@ -92,12 +69,11 @@ impl<T> Store<T> where T: Content {
 
 #[cfg(test)]
 mod tests {
-
-	use super::Store;
+	use test_common;
 
 	#[test]
 	fn put_u8() {
-		let mut store = Store::new();
+		let mut store = test_common::store();
 
 		let hash = store.put(&42).unwrap();
 		let hash2 = store.put(&43).unwrap();

@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-use content::{Content, Source, Sink};
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Read, Write, Result, Error, ErrorKind};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-/// Storage implementations for common std things
+use content::{Content, Source, Sink};
+use hash::ContentHasher;
 
-impl<T> Content for Option<T> where T: Content {
-	fn to_content(&self, sink: &mut Sink) -> Result<()> {
+/// Content implementations for common std things
+
+impl<T, H> Content<H> for Option<T> where T: Content<H>, H: ContentHasher {
+	fn to_content(&self, sink: &mut Sink<H>) -> Result<()> {
 		match *self {
 			Some(ref t) => {
 				try!(sink.write(&[1]));
@@ -30,7 +32,7 @@ impl<T> Content for Option<T> where T: Content {
 			None => sink.write_all(&[0])
 		}
 	}
-	fn from_content(source: &mut Source) -> Result<Self> {
+	fn from_content(source: &mut Source<H>) -> Result<Self> {
 		let mut byte = [0];
 		try!(source.read_exact(&mut byte));
 		match byte[0] {
@@ -48,42 +50,42 @@ impl<T> Content for Option<T> where T: Content {
 //
 // This means that Box<T> and T have an identical content
 // hash, differing only on the type level!
-impl<T> Content for Box<T> where T: Content {
-	fn to_content(&self, sink: &mut Sink) -> Result<()> {
+impl<T, H> Content<H> for Box<T> where T: Content<H>, H: ContentHasher {
+	fn to_content(&self, sink: &mut Sink<H>) -> Result<()> {
 		(self as &T).to_content(sink)
 	}
-	fn from_content(source: &mut Source) -> Result<Self> {
+	fn from_content(source: &mut Source<H>) -> Result<Self> {
 		Ok(Box::new(try!(T::from_content(source))))
 	}
 }
 
-impl Content for u8 {
-	fn to_content(&self, sink: &mut Sink) -> Result<()> {
+impl<H> Content<H> for u8 where H: ContentHasher {
+	fn to_content(&self, sink: &mut Sink<H>) -> Result<()> {
 		sink.write_all(&[*self])
 	}
-	fn from_content(source: &mut Source) -> Result<Self> {
+	fn from_content(source: &mut Source<H>) -> Result<Self> {
 		let b = &mut [0u8];
 		try!(source.read_exact(b));
 		Ok(b[0])
 	}
 }
 
-impl Content for () {
-	fn to_content(&self, _: &mut Sink) -> Result<()> {
+impl<H> Content<H> for () where H: ContentHasher {
+	fn to_content(&self, _: &mut Sink<H>) -> Result<()> {
 		Ok(())
 	}
-	fn from_content(_: &mut Source) -> Result<Self> {
+	fn from_content(_: &mut Source<H>) -> Result<Self> {
 		Ok(())
 	}
 }
 
 macro_rules! number {
 	( $t:ty: $read:ident, $write:ident ) => {
-		impl Content for $t {
-			fn to_content(&self, sink: &mut Sink) -> Result<()> {
+		impl<H> Content<H> for $t where H: ContentHasher {
+			fn to_content(&self, sink: &mut Sink<H>) -> Result<()> {
 				sink.$write::<BigEndian>(*self)
 			}
-			fn from_content(source: &mut Source) -> Result<Self> {
+			fn from_content(source: &mut Source<H>) -> Result<Self> {
 				source.$read::<BigEndian>()
 			}
 		}
@@ -103,9 +105,10 @@ mod tests {
 	use store::Store;
 	use content::Content;
 	use std::fmt::Debug;
+	use default::BlakeWrap;
 
-	fn put_get<T: Content + Debug + PartialEq>(t: T) {
-		let mut store = Store::new();
+	fn put_get<T: Content<BlakeWrap> + Debug + PartialEq>(t: T) {
+		let mut store: Store<_, BlakeWrap> = Store::new();
 		let hash = store.put(&t).unwrap();
 		assert_eq!(store.get(&hash).unwrap(), t);
 	}

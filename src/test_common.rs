@@ -14,38 +14,36 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(test)]
 extern crate tempdir;
-
 use tempdir::TempDir;
 
 use std::io::{Read, Write, Result};
 use std::path::PathBuf;
 
-use hash::Hash32;
+use hash::ContentHasher;
 use backend::Backend;
 use store::Store;
 use content::Content;
+use default::BlakeWrap;
 
-impl Backend for TempDir {
+impl<H> Backend<H> for TempDir where H: ContentHasher {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
-	) -> Result<Hash32> {
+		source: &Fn(&mut Write, &mut Backend<H>) -> Result<H::Digest>,
+	) -> Result<H::Digest> {
 		PathBuf::from(self.path()).store(source)
 	}
 	fn request(
 		&self,
-		hash: &Hash32,
+		hash: &H::Digest,
 		read: &Fn(&mut Read) -> Result<()>,
 	) -> Result<()> {
-		PathBuf::from(self.path()).request(hash, read)
+		let pb = PathBuf::from(self.path());
+		(&pb as &Backend<H>).request(hash, read)
 	}
 }
 
-pub fn tempdisk() -> Box<Backend> {
-	Box::new(TempDir::new("content_pathbuf").unwrap())
-}
-
-pub fn diskstore<T: Content>() -> Store<T> {
-	Store::new_with_backend(tempdisk())
+pub fn store<T: Content<BlakeWrap>>() -> Store<T, BlakeWrap> {
+	Store::new()
 }

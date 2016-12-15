@@ -18,14 +18,15 @@ use std::collections::HashMap;
 use std::io::{Result, Read, Write, Error, ErrorKind};
 
 use backend::Backend;
-use hash::Hash32;
+use hash::ContentHasher;
 
-impl Backend for HashMap<Hash32, Vec<u8>>
+impl<H> Backend<H> for HashMap<H::Digest, Vec<u8>>
+	where H: ContentHasher,
 {
 	fn store(
 		&mut self,
-		source: &Fn(&mut Write, &mut Backend) -> Result<Hash32>,
-	) -> Result<Hash32> {
+		source: &Fn(&mut Write, &mut Backend<H>) -> Result<H::Digest>,
+	) -> Result<H::Digest> {
 		let mut vec = vec![];
 		let hash = try!(source(&mut vec, self));
 		self.insert(hash.clone(), vec);
@@ -33,7 +34,7 @@ impl Backend for HashMap<Hash32, Vec<u8>>
 	}
 	fn request(
 		&self,
-		hash: &Hash32,
+		hash: &H::Digest,
 		read: &Fn(&mut Read) -> Result<()>,
 	) -> Result<()> {
 		let vec = try!(self.get(hash)
