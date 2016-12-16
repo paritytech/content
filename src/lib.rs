@@ -34,3 +34,4 @@ mod std_impls;
 pub use store::Store;
 pub use content::{Content, Sink, Source};
 pub use hash::ContentHasher;
+pub use default::BlakeWrap;

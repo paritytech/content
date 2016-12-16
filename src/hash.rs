@@ -24,6 +24,10 @@ pub trait ContentHasher where Self: Write + Sized {
 
 	fn new() -> Self;
 	fn fin(self) -> Self::Digest;
+
+	fn null() -> Self::Digest {
+		Self::new().fin()
+	}
 }
 
 struct VoidHasher;
